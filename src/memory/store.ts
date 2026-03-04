@@ -33,7 +33,6 @@ export async function readEntry(topic: string): Promise<MemoryEntry | null> {
 }
 
 export async function writeEntry(topic: string, content: string, tags: string[] = []): Promise<void> {
-  const root = getMemoryRoot();
   const file = topicToPath(topic);
   await ensureDir(path.dirname(file));
 
@@ -66,7 +65,15 @@ export async function listTopics(): Promise<string[]> {
   try {
     const raw = await fs.readFile(indexFile, "utf-8");
     const index = JSON.parse(raw) as Record<string, string[]>;
-    return Object.keys(index);
+    // Ungültige Topics filtern (z.B. Path-Traversal-Versuche)
+    const valid = Object.keys(index).filter(t => isValidTopic(t));
+    // Index bereinigen wenn ungültige Keys gefunden
+    if (valid.length < Object.keys(index).length) {
+      const cleaned: Record<string, string[]> = {};
+      for (const key of valid) cleaned[key] = index[key];
+      await fs.writeFile(indexFile, JSON.stringify(cleaned, null, 2), "utf-8");
+    }
+    return valid;
   } catch {
     return [];
   }
@@ -117,6 +124,15 @@ export async function deleteEntry(topic: string): Promise<void> {
 
 // --- Internes ---
 
+function isValidTopic(topic: string): boolean {
+  try {
+    topicToPath(topic);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function topicToPath(topic: string): string {
   // "architecture/decisions" -> .claude-memory/architecture/decisions.md
   const root = getMemoryRoot();
@@ -161,6 +177,8 @@ function parseEntry(raw: string): MemoryEntry {
 }
 
 async function updateIndex(topic: string, tags: string[]): Promise<void> {
+  // Validierung: nur gültige Topics in den Index schreiben
+  if (!isValidTopic(topic)) return;
   const indexFile = path.join(getMemoryRoot(), "index.json");
   let index: Record<string, string[]> = {};
   try {

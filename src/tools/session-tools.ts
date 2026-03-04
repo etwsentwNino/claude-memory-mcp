@@ -1,8 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import fs from "fs/promises";
-import path from "path";
-import { writeEntry, readEntry, listTopics, getMemoryRoot, ensureDir } from "../memory/store.js";
+import { writeEntry, readEntry, listTopics, getMemoryRoot, ensureDir, deleteEntry } from "../memory/store.js";
 
 export function registerSessionTools(server: McpServer): void {
 
@@ -42,9 +40,16 @@ export function registerSessionTools(server: McpServer): void {
       }
 
       const existing = await readEntry("current-task");
-      const newContent = existing
-        ? `${existing.content}\n\n---\n\n${lines.join("\n")}`
-        : lines.join("\n");
+      let newContent: string;
+      if (existing) {
+        // Letzte 4 Checkpoints behalten + neuer = max 5
+        const sections = existing.content.split("\n\n---\n\n");
+        const kept = sections.slice(-4);
+        kept.push(lines.join("\n"));
+        newContent = kept.join("\n\n---\n\n");
+      } else {
+        newContent = lines.join("\n");
+      }
 
       await writeEntry("current-task", newContent, ["session", "checkpoint"]);
 
@@ -99,6 +104,8 @@ export function registerSessionTools(server: McpServer): void {
       // current-task resetten
       if (nextSession) {
         await writeEntry("current-task", `## Nächster Start\n\n${nextSession}`, ["session", "next"]);
+      } else {
+        await writeEntry("current-task", `## Session beendet\n\nLetzte Session abgeschlossen am ${dateStr}. Kein spezifischer nächster Schritt definiert.`, ["session"]);
       }
 
       // Auto-Compress: Sessions älter als 7 Tage komprimieren
@@ -158,28 +165,9 @@ async function compressOldSessions(olderThanDays: number): Promise<number> {
   await writeEntry(archiveKey, archiveContent, ["archive", "compressed"]);
 
   // Alte Sessions löschen
-  const root = getMemoryRoot();
-  const indexFile = path.join(root, "index.json");
-  let index: Record<string, string[]> = {};
-  try {
-    const raw = await fs.readFile(indexFile, "utf-8");
-    index = JSON.parse(raw);
-  } catch {
-    // index nicht vorhanden
-  }
-
   for (const s of oldSessions) {
-    const parts = s.topic.split("/");
-    const filePath = path.join(root, ...parts) + ".md";
-    try {
-      await fs.unlink(filePath);
-    } catch {
-      // Datei existiert nicht
-    }
-    delete index[s.topic];
+    await deleteEntry(s.topic);
   }
-
-  await fs.writeFile(indexFile, JSON.stringify(index, null, 2), "utf-8");
 
   return oldSessions.length;
 }

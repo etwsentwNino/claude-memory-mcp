@@ -67,8 +67,11 @@ export function registerSearchTools(server: McpServer): void {
       const escapedQuery = lowerQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const results: { topic: string; excerpt: string; score: number }[] = [];
 
-      for (const topic of topics) {
-        const entry = await readEntry(topic);
+      const allEntries = await Promise.all(
+        topics.map(async (topic) => ({ topic, entry: await readEntry(topic) }))
+      );
+
+      for (const { topic, entry } of allEntries) {
         if (!entry) continue;
 
         const lowerContent = entry.content.toLowerCase();

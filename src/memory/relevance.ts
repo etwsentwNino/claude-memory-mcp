@@ -27,7 +27,8 @@ function trigramSimilarity(a: Set<string>, b: Set<string>): number {
   for (const t of a) {
     if (b.has(t)) intersection++;
   }
-  return intersection / Math.min(a.size, b.size);
+  const union = a.size + b.size - intersection;
+  return intersection / union; // Jaccard-Index
 }
 
 export async function scoreTopicsForTask(task: string): Promise<ScoredTopic[]> {
@@ -35,10 +36,14 @@ export async function scoreTopicsForTask(task: string): Promise<ScoredTopic[]> {
   const taskWords = task.toLowerCase().split(/\s+/).filter(w => w.length >= 2 && !STOP_WORDS.has(w));
   const taskTrigrams = generateTrigrams(task);
 
+  // Alle Entries parallel laden
+  const entries = await Promise.all(
+    topics.map(async (topic) => ({ topic, entry: await readEntry(topic) }))
+  );
+
   const scored: ScoredTopic[] = [];
 
-  for (const topic of topics) {
-    const entry = await readEntry(topic);
+  for (const { topic, entry } of entries) {
     if (!entry) continue;
 
     let score = 0;

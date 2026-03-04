@@ -32,10 +32,12 @@ export function registerMemoryTools(server: McpServer): void {
         }
 
         let totalChars = 0;
+        const results = await Promise.all(
+          topics.map(async (t) => ({ topic: t, entry: await readEntry(t) }))
+        );
         const entries: { topic: string; accessCount: number; updated: string; chars: number }[] = [];
 
-        for (const t of topics) {
-          const entry = await readEntry(t);
+        for (const { topic: t, entry } of results) {
           if (!entry) continue;
           const chars = entry.content.length;
           totalChars += chars;
@@ -106,7 +108,7 @@ export function registerMemoryTools(server: McpServer): void {
         "Nutze dies nach Entscheidungen, Architekturänderungen oder wichtigen Erkenntnissen.",
       inputSchema: z.object({
         topic: z.string().describe("Thema / Pfad, z.B. 'decisions', 'architecture', 'entities/UserService'"),
-        content: z.string().describe("Der zu speichernde Markdown-Inhalt"),
+        content: z.string().default("").describe("Der zu speichernde Markdown-Inhalt (nicht nötig bei mode='delete')"),
         tags: z.array(z.string()).default([]).describe("Optionale Schlagwörter zur Kategorisierung"),
         mode: z.enum(["write", "append", "delete"]).default("write").describe("write: überschreiben, append: anhängen, delete: löschen"),
       }),
