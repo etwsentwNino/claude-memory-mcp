@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { writeEntry, readEntry, getMemoryRoot, ensureDir } from "../memory/store.js";
+import { writeEntry, readEntry, listTopics, getMemoryRoot, ensureDir } from "../memory/store.js";
 
 export function registerSessionTools(server: McpServer): void {
 
@@ -103,6 +103,50 @@ export function registerSessionTools(server: McpServer): void {
           {
             type: "text",
             text: `Session zusammengefasst und unter '${sessionKey}' gespeichert.`,
+          },
+        ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "memory_diff",
+    {
+      title: "Memory-Änderungen anzeigen",
+      description:
+        "Zeigt welche Memory-Einträge sich seit einem Zeitpunkt geändert haben. Standard: letzte 24 Stunden.",
+      inputSchema: z.object({
+        since: z.string().optional().describe("ISO-Datum als Startpunkt, z.B. '2025-01-15T00:00:00Z'. Standard: vor 24 Stunden."),
+      }),
+    },
+    async ({ since }) => {
+      await ensureDir(getMemoryRoot());
+      const sinceDate = since ? new Date(since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const topics = await listTopics();
+
+      const changed: { topic: string; updated: string }[] = [];
+
+      for (const topic of topics) {
+        const entry = await readEntry(topic);
+        if (entry && new Date(entry.meta.updated) >= sinceDate) {
+          changed.push({ topic, updated: entry.meta.updated });
+        }
+      }
+
+      changed.sort((a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime());
+
+      if (changed.length === 0) {
+        return {
+          content: [{ type: "text", text: `Keine Änderungen seit ${sinceDate.toISOString()}.` }],
+        };
+      }
+
+      const lines = changed.map((c) => `- **${c.topic}** — ${c.updated}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Geänderte Einträge seit ${sinceDate.toISOString()}:\n\n${lines.join("\n")}`,
           },
         ],
       };

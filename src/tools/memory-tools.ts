@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { readEntry, writeEntry, touchEntry, listTopics, getMemoryRoot, ensureDir } from "../memory/store.js";
+import { readEntry, writeEntry, touchEntry, listTopics, getMemoryRoot, ensureDir, appendEntry, deleteEntry } from "../memory/store.js";
 
 export function registerMemoryTools(server: McpServer): void {
 
@@ -73,6 +73,46 @@ export function registerMemoryTools(server: McpServer): void {
       }
       const list = topics.map((t) => `- ${t}`).join("\n");
       return { content: [{ type: "text", text: `Vorhandene Memory-Einträge:\n\n${list}` }] };
+    }
+  );
+
+  server.registerTool(
+    "memory_append",
+    {
+      title: "Memory anhängen",
+      description:
+        "Hängt Inhalt an einen bestehenden Memory-Eintrag an, ohne ihn zu überschreiben. " +
+        "Ideal für laufende Listen wie decisions oder changelog.",
+      inputSchema: z.object({
+        topic: z.string().describe("Thema / Pfad des Memory-Eintrags"),
+        content: z.string().describe("Der anzuhängende Inhalt"),
+      }),
+    },
+    async ({ topic, content }) => {
+      await ensureDir(getMemoryRoot());
+      await appendEntry(topic, content);
+      return {
+        content: [{ type: "text", text: `Inhalt an '${topic}' angehängt.` }],
+      };
+    }
+  );
+
+  server.registerTool(
+    "memory_delete",
+    {
+      title: "Memory löschen",
+      description:
+        "Löscht einen Memory-Eintrag dauerhaft. Nutze dies zum Aufräumen veralteter oder irrelevanter Einträge.",
+      inputSchema: z.object({
+        topic: z.string().describe("Thema / Pfad des zu löschenden Eintrags"),
+      }),
+    },
+    async ({ topic }) => {
+      await ensureDir(getMemoryRoot());
+      await deleteEntry(topic);
+      return {
+        content: [{ type: "text", text: `Memory '${topic}' gelöscht.` }],
+      };
     }
   );
 }

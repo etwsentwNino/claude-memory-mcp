@@ -50,6 +50,20 @@ npm install
 npm run build
 ```
 
+### Alternatively: Use via npx (no clone required)
+
+In `~/.claude/settings.json`:
+```json
+{
+  "mcpServers": {
+    "claude-memory": {
+      "command": "npx",
+      "args": ["-y", "claude-memory-mcp"]
+    }
+  }
+}
+```
+
 ### 2. Register the plugin in Claude Code
 
 Open (or create) `~/.claude/settings.json` and add the `mcpServers` entry:
@@ -112,8 +126,15 @@ That's it. Claude will follow these instructions automatically.
 |------|-------------|
 | `memory_load(topic)` | Load stored knowledge for a specific topic |
 | `memory_save(topic, content, tags?)` | Save or overwrite knowledge for a topic |
+| `memory_append(topic, content)` | Append content without overwriting |
+| `memory_delete(topic)` | Delete a memory entry |
 | `memory_list` | List all existing memory topics |
 | `memory_search(query)` | Full-text search across all memory entries |
+| `memory_stats` | Show memory store statistics |
+| `memory_diff(since?)` | Show changes since a point in time |
+| `memory_compress(olderThanDays?)` | Compress old session archives |
+| `context_suggest(task, maxTopics?)` | Suggest relevant topics for a task |
+| `memory_init` | Initialize project memory |
 | `checkpoint(summary, nextSteps?, blockers?)` | Save current progress snapshot |
 | `session_summary(accomplishments, decisions?, nextSession?)` | Archive the current session |
 

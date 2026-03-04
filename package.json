@@ -1,9 +1,12 @@
 {
   "name": "claude-memory-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP Server zur Bekämpfung von Context Rot in Claude Code",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "claude-memory-mcp": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",

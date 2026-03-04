@@ -72,6 +72,44 @@ export async function listTopics(): Promise<string[]> {
   }
 }
 
+export async function appendEntry(topic: string, content: string): Promise<void> {
+  const root = getMemoryRoot();
+  await ensureDir(root);
+  const existing = await readEntry(topic);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    const appended = `${existing.content}\n\n---\n_Angehängt: ${now}_\n\n${content}`;
+    const meta: MemoryMeta = {
+      ...existing.meta,
+      updated: now,
+    };
+    const file = topicToPath(topic);
+    await fs.writeFile(file, serializeEntry({ meta, content: appended }), "utf-8");
+  } else {
+    await writeEntry(topic, content, []);
+  }
+}
+
+export async function deleteEntry(topic: string): Promise<void> {
+  const file = topicToPath(topic);
+  try {
+    await fs.unlink(file);
+  } catch {
+    // Datei existiert nicht — kein Fehler
+  }
+  // Aus index.json entfernen
+  const indexFile = path.join(getMemoryRoot(), "index.json");
+  try {
+    const raw = await fs.readFile(indexFile, "utf-8");
+    const index = JSON.parse(raw) as Record<string, string[]>;
+    delete index[topic];
+    await fs.writeFile(indexFile, JSON.stringify(index, null, 2), "utf-8");
+  } catch {
+    // index.json existiert nicht — kein Fehler
+  }
+}
+
 // --- Internes ---
 
 function topicToPath(topic: string): string {
@@ -90,13 +128,21 @@ function parseEntry(raw: string): MemoryEntry {
   const metaMatch = raw.match(/^<!-- META:(.+?) -->/);
   if (!metaMatch) {
     return {
-      meta: { created: "", updated: "", accessCount: 0, tags: [] },
+      meta: { created: new Date().toISOString(), updated: new Date().toISOString(), accessCount: 0, tags: [] },
       content: raw,
     };
   }
-  const meta: MemoryMeta = JSON.parse(metaMatch[1]);
-  const content = raw.slice(metaMatch[0].length).trimStart();
-  return { meta, content };
+  try {
+    const meta: MemoryMeta = JSON.parse(metaMatch[1]);
+    const content = raw.slice(metaMatch[0].length).trimStart();
+    return { meta, content };
+  } catch {
+    // Korrupter Meta-Header — content trotzdem retten
+    return {
+      meta: { created: new Date().toISOString(), updated: new Date().toISOString(), accessCount: 0, tags: ["recovered"] },
+      content: raw.slice(metaMatch[0].length).trimStart(),
+    };
+  }
 }
 
 async function updateIndex(topic: string, tags: string[]): Promise<void> {
